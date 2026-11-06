@@ -85,8 +85,10 @@ with st.sidebar:
     uploaded_file = st.file_uploader("Upload Notes (PDF)", type=["pdf"])
 
 # --- PDF Extract Function ---
-def extract_pdf_text(pdf_file):
-    reader = pypdf.PdfReader(pdf_file)
+@st.cache_data
+def extract_pdf_text(file_bytes):
+    from io import BytesIO
+    reader = pypdf.PdfReader(BytesIO(file_bytes))
     text = ""
     for page in reader.pages:
         extracted = page.extract_text()
@@ -96,7 +98,8 @@ def extract_pdf_text(pdf_file):
 
 context_text = ""
 if uploaded_file:
-    context_text = extract_pdf_text(uploaded_file)
+    file_bytes = uploaded_file.read()
+    context_text = extract_pdf_text(file_bytes)
     st.success(f"Loaded: {uploaded_file.name}")
 
 # --- Chat State ---
@@ -114,45 +117,45 @@ if user_input:
     with st.chat_message("user"):
         st.write(user_input)
 
-    system_prompt = f"""
-    You are an expert interactive college tutor. 
-    Use the provided study materials to explain concepts simply, quiz the user, evaluate their answers, 
-    and explicitly correct them when they give wrong or incomplete answers.
-    
-    Provided Study Material:
-    {context_text if context_text else 'No document uploaded yet.'}
-    """
-
-    full_payload = f"{system_prompt}\n\nUser Question: {user_input}"
     ai_response = ""
 
     with st.chat_message("assistant"):
-        try:
-            if "Gemini" in model_choice:
-                if not gemini_key:
-                    st.error("Please enter your Gemini API key in the sidebar.")
-                else:
-                    client = genai.Client(api_key=gemini_key)
-                    res = client.models.generate_content(
-                        model='gemini-3.8-flash',
-                        contents=full_payload
-                    )
-                    ai_response = res.text
+        with st.spinner("Thinking at lightning speed..."):
+            try:
+                if "Gemini" in model_choice:
+                    if not gemini_key:
+                        st.error("Please enter your Gemini API key in the sidebar.")
+                    else:
+                        client = genai.Client(api_key=gemini_key)
+                        
+                        # Build efficient message payload
+                        prompt_content = user_input
+                        if context_text:
+                            prompt_content = f"Context Material:\n{context_text}\n\nUser Question: {user_input}"
+                            
+                        res = client.models.generate_content(
+                            model='gemini-3.8-flash',
+                            contents=prompt_content
+                        )
+                        ai_response = res.text
 
-            elif "GPT" in model_choice:
-                if not openai_key:
-                    st.error("Please enter your OpenAI API key in the sidebar.")
-                else:
-                    client = OpenAI(api_key=openai_key)
-                    res = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[{"role": "user", "content": full_payload}]
-                    )
-                    ai_response = res.choices[0].message.content
+                elif "GPT" in model_choice:
+                    if not openai_key:
+                        st.error("Please enter your OpenAI API key in the sidebar.")
+                    else:
+                        client = OpenAI(api_key=openai_key)
+                        messages_payload = [{"role": "system", "content": f"You are an expert college tutor. Context: {context_text if context_text else 'None'}"}]
+                        messages_payload.append({"role": "user", "content": user_input})
+                        
+                        res = client.chat.completions.create(
+                            model="gpt-4o-mini",
+                            messages=messages_payload
+                        )
+                        ai_response = res.choices[0].message.content
 
-            if ai_response:
-                st.write(ai_response)
-                st.session_state.messages.append({"role": "assistant", "content": ai_response})
-                
-        except Exception as err:
-            st.error(f"Execution Error: {str(err)}")
+                if ai_response:
+                    st.write(ai_response)
+                    st.session_state.messages.append({"role": "assistant", "content": ai_response})
+                    
+            except Exception as err:
+                st.error(f"Execution Error: {str(err)}")
