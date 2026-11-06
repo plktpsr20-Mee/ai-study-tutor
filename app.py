@@ -4,7 +4,7 @@ from groq import Groq
 from io import BytesIO
 
 # Page Config
-st.set_page_config(page_title="Free Groq Study Tutor", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Groq Glassy Study Tutor", page_icon="⚡", layout="wide")
 
 # --- Glassmorphism Custom CSS Injection ---
 glassy_css = """
@@ -55,6 +55,7 @@ glassy_css = """
     color: white !important;
     border-radius: 12px !important;
     transition: all 0.3s ease !important;
+    width: 100%;
 }
 
 .stButton > button:hover {
@@ -67,7 +68,7 @@ st.markdown(glassy_css, unsafe_allow_html=True)
 
 # Title Header
 st.title("⚡ Groq-Powered Study Tutor")
-st.markdown("Blazing-fast, 100% free AI study assistant powered by Llama 3.3.")
+st.markdown("Blazing-fast, 100% free AI study assistant powered by Llama.")
 
 # --- Sidebar ---
 with st.sidebar:
@@ -103,12 +104,26 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
 
-user_input = st.chat_input("Ask a question, request a summary, or type 'Quiz me'...")
+# --- Quick-Action Preset Buttons ---
+st.write("") 
+col1, col2 = st.columns(2)
+preset_input = None
 
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
+with col1:
+    if st.button("📝 Summarize Document"):
+        preset_input = "Please provide a clear, concise summary of the uploaded document, highlighting key concepts and takeaways."
+with col2:
+    if st.button("❓ Quiz Me"):
+        preset_input = "Please generate a 3-question practice quiz based on the uploaded document to test my understanding."
+
+# Handle Chat Input or Preset Trigger
+user_input = st.chat_input("Ask a question, request a summary, or type 'Quiz me'...")
+final_query = preset_input if preset_input else user_input
+
+if final_query:
+    st.session_state.messages.append({"role": "user", "content": final_query})
     with st.chat_message("user"):
-        st.write(user_input)
+        st.write(final_query)
 
     with st.chat_message("assistant"):
         if not groq_key:
@@ -125,12 +140,12 @@ if user_input:
                         },
                         {
                             "role": "user", 
-                            "content": user_input
+                            "content": final_query
                         }
                     ]
                     
                     response = client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
+                        model="llama-3.1-8b-instant",  # Verified stable production model
                         messages=messages_payload,
                         temperature=0.7
                     )
