@@ -4,7 +4,7 @@ from google import genai
 from openai import OpenAI
 
 # Page Config
-st.set_page_config(page_title="Glassy AI Study Tutor", page_icon="🔮", layout="wide")
+st.set_page_config(page_title=" AI Study Tutor", page_icon="🔮", layout="wide")
 
 # --- Glassmorphism Custom CSS Injection ---
 glassy_css = """
@@ -134,7 +134,7 @@ if user_input:
                 else:
                     client = genai.Client(api_key=gemini_key)
                     res = client.models.generate_content(
-                        model='gemini-2.5-flash',
+                        model='gemini-flash-latest',
                         contents=full_payload
                     )
                     ai_response = res.text
