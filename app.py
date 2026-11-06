@@ -1,15 +1,14 @@
 import streamlit as st
 import pypdf
 from google import genai
-from openai import OpenAI
+from io import BytesIO
 
 # Page Config
-st.set_page_config(page_title="Glassy AI Study Tutor", page_icon="🔮", layout="wide")
+st.set_page_config(page_title="Gemini Flash Study Tutor", page_icon="⚡", layout="wide")
 
 # --- Glassmorphism Custom CSS Injection ---
 glassy_css = """
 <style>
-/* Gradient Animated Background */
 .stApp {
     background: linear-gradient(-45deg, #0f172a, #1e1b4b, #311042, #0284c7);
     background-size: 400% 400%;
@@ -23,7 +22,6 @@ glassy_css = """
     100% { background-position: 0% 50%; }
 }
 
-/* Glass Panels & Sidebar */
 [data-testid="stSidebar"], section[data-testid="stSidebar"] > div {
     background: rgba(255, 255, 255, 0.05) !important;
     backdrop-filter: blur(16px) !important;
@@ -31,7 +29,6 @@ glassy_css = """
     border-right: 1px solid rgba(255, 255, 255, 0.15) !important;
 }
 
-/* Glass Cards for Chat Messages */
 .stChatMessage {
     background: rgba(255, 255, 255, 0.08) !important;
     backdrop-filter: blur(12px) !important;
@@ -43,7 +40,6 @@ glassy_css = """
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3) !important;
 }
 
-/* Glass Inputs & Buttons */
 .stTextInput > div > div > input, .stFileUploader section {
     background: rgba(255, 255, 255, 0.05) !important;
     backdrop-filter: blur(8px) !important;
@@ -69,25 +65,23 @@ glassy_css = """
 """
 st.markdown(glassy_css, unsafe_allow_html=True)
 
-# Title
-st.title("🔮 Glassy Dual-Model AI Tutor")
+# Title Header
+st.title("⚡ Gemini Flash Study Tutor")
+st.markdown("Your lightning-fast, single-model AI study companion powered by Google Gemini.")
 
 # --- Sidebar ---
 with st.sidebar:
-    st.header("⚙️ Settings")
-    model_choice = st.radio("AI Engine", ["Gemini (Flash)", "GPT-4o-mini"])
+    st.header("⚙️ Configuration")
+    gemini_key = st.text_input("Gemini API Key", type="password", placeholder="Paste free key here...")
+    st.caption("Get a free key instantly at [Google AI Studio](https://aistudio.google.com/)")
     
-    st.subheader("🔑 API Key")
-    gemini_key = st.text_input("Gemini API Key", type="password")
-    openai_key = st.text_input("OpenAI API Key", type="password")
-    
-    st.subheader("📄 Material")
+    st.divider()
+    st.subheader("📄 Study Material")
     uploaded_file = st.file_uploader("Upload Notes (PDF)", type=["pdf"])
 
-# --- PDF Extract Function ---
+# --- Cached PDF Text Extraction ---
 @st.cache_data
 def extract_pdf_text(file_bytes):
-    from io import BytesIO
     reader = pypdf.PdfReader(BytesIO(file_bytes))
     text = ""
     for page in reader.pages:
@@ -98,11 +92,10 @@ def extract_pdf_text(file_bytes):
 
 context_text = ""
 if uploaded_file:
-    file_bytes = uploaded_file.read()
-    context_text = extract_pdf_text(file_bytes)
-    st.success(f"Loaded: {uploaded_file.name}")
+    context_text = extract_pdf_text(uploaded_file.read())
+    st.sidebar.success(f"Loaded: {uploaded_file.name}")
 
-# --- Chat State ---
+# --- Chat Interface State ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -110,52 +103,40 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
 
-user_input = st.chat_input("Ask a question, request an explanation, or type 'Quiz me'...")
+user_input = st.chat_input("Ask a question, request a summary, or type 'Quiz me'...")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.write(user_input)
 
-    ai_response = ""
-
     with st.chat_message("assistant"):
-        with st.spinner("Thinking at lightning speed..."):
-            try:
-                if "Gemini" in model_choice:
-                    if not gemini_key:
-                        st.error("Please enter your Gemini API key in the sidebar.")
-                    else:
-                        client = genai.Client(api_key=gemini_key)
-                        
-                        # Build efficient message payload
-                        prompt_content = user_input
-                        if context_text:
-                            prompt_content = f"Context Material:\n{context_text}\n\nUser Question: {user_input}"
-                            
-                        res = client.models.generate_content(
-                            model='gemini-3.8-flash',
-                            contents=prompt_content
-                        )
-                        ai_response = res.text
-
-                elif "GPT" in model_choice:
-                    if not openai_key:
-                        st.error("Please enter your OpenAI API key in the sidebar.")
-                    else:
-                        client = OpenAI(api_key=openai_key)
-                        messages_payload = [{"role": "system", "content": f"You are an expert college tutor. Context: {context_text if context_text else 'None'}"}]
-                        messages_payload.append({"role": "user", "content": user_input})
-                        
-                        res = client.chat.completions.create(
-                            model="gpt-4o-mini",
-                            messages=messages_payload
-                        )
-                        ai_response = res.choices[0].message.content
-
-                if ai_response:
+        if not gemini_key:
+            st.error("Please enter your Gemini API key in the sidebar to begin.")
+        else:
+            with st.spinner("Thinking at lightning speed..."):
+                try:
+                    client = genai.Client(api_key=gemini_key)
+                    
+                    # Single-model prompt construction
+                    prompt_content = f"""
+                    You are an expert, friendly college study tutor. Explain concepts simply, provide bullet points for clarity, and quiz the user when requested.
+                    
+                    Uploaded Document Context:
+                    {context_text if context_text else 'No specific document uploaded yet. Answer based on general academic knowledge.'}
+                    
+                    User Request: {user_input}
+                    """
+                    
+                    res = client.models.generate_content(
+                        model='gemini-3.8-flash',
+                        contents=prompt_content
+                    )
+                    
+                    ai_response = res.text
                     st.write(ai_response)
                     st.session_state.messages.append({"role": "assistant", "content": ai_response})
                     
-            except Exception as err:
-                st.error(f"Execution Error: {str(err)}")
+                except Exception as err:
+                    st.error(f"Error: {str(err)}. Please verify your API key.")
+                    
