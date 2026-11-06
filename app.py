@@ -79,7 +79,7 @@ def create_chat(title="New chat", folder_id=None):
 def list_chats():
     with get_db() as conn:
         return conn.execute(
-            "SELECT id, title, updated_at FROM chats ORDER BY updated_at DESC"
+            "SELECT id, title, updated_at, folder_id FROM chats ORDER BY updated_at DESC"
         ).fetchall()
 
 
